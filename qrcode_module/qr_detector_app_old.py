@@ -22,14 +22,13 @@ MODEL_PATH = 'qr_malware_model.keras'
 
 # ==== Cleanup on Exit ====
 def cleanup_and_goodbye():
-    print("\n🔒 Cleaning up resources...")
+    print("\nCleaning up resources...")
     try:
         for file in os.listdir(UPLOAD_FOLDER):
             file_path = os.path.join(UPLOAD_FOLDER, file)
             if os.path.isfile(file_path):
                 os.remove(file_path)
-        print("✨ Thank you for using QR Code Malware Detection System!")
-        print("👋 Goodbye! Stay safe online!")
+        print("Thank you for using QR Code Malware Detection System!")
     except Exception as e:
         print(f"Cleanup error: {e}")
 
@@ -93,7 +92,7 @@ class QRDataGenerator(tf.keras.utils.Sequence):
 
 # ==== Dataset Loader ====
 def load_and_preprocess_dataset():
-    print("\n📁 Loading dataset...")
+    print("\nLoading dataset...")
     benign_path = os.path.join(QR_DATASET_PATH, 'benign', 'benign')
     malicious_path = os.path.join(QR_DATASET_PATH, 'malicious', 'malicious')
 
@@ -153,12 +152,12 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # ==== Model Init or Training ====
-print("\n🔄 Initializing QR Code Malware Detection System...")
+print("\nInitializing QR Code Malware Detection System...")
 if os.path.exists(MODEL_PATH):
-    print("📂 Loading model...")
+    print("Loading model...")
     model = tf.keras.models.load_model(MODEL_PATH)
 else:
-    print("🧠 Training new model...")
+    print("Training new model...")
     model = create_model()
     train_gen, val_gen, train_size, val_size = load_and_preprocess_dataset()
 
@@ -173,12 +172,12 @@ else:
     )
     model = tf.keras.models.load_model('best_model.keras')
     model.save(MODEL_PATH)
-    print(f"✅ Model trained and saved to {MODEL_PATH}")
+    print(f"Model trained and saved to {MODEL_PATH}")
 
 # ==== Flask Web Interface ====
 @app.route('/')
 def home():
-    return render_template_string("<h2>QR Code Scanner Running ✅</h2>")
+    return render_template_string("<h2>QR Code Scanner Running</h2>")
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -216,5 +215,5 @@ def analyze():
         os.remove(filepath)
 
 if __name__ == '__main__':
-    print("🌐 Starting server at http://127.0.0.1:5000")
+    print("Starting server at http://127.0.0.1:5000")
     app.run(debug=True)

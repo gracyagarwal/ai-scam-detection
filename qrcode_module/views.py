@@ -201,7 +201,7 @@ def qr_home():
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             file.save(filepath)
 
-            # ✅ Convert image to base64 for preview display
+            # Convert image to base64 for preview display
             import base64
             with open(filepath, "rb") as image_file:
                 image_data = base64.b64encode(image_file.read()).decode("utf-8")

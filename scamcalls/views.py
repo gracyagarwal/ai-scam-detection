@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, render_template_string
 from transformers import pipeline
 import whisper
 
-print("✅ Scam Calls Blueprint Loaded with render_template_string")
+print(" Scam Calls Blueprint Loaded with render_template_string")
 
 os.environ["PATH"] += os.pathsep + "C:\\ffmpeg\\bin"
 

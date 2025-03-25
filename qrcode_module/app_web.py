@@ -204,5 +204,5 @@ def analyze():
             os.remove(file_path)
 
 if __name__ == '__main__':
-    print("✅ Model loaded. Visit http://127.0.0.1:5000 to use the web app.")
+    print("Model loaded. Visit http://127.0.0.1:5000 to use the web app.")
     app.run(debug=True)

@@ -105,7 +105,7 @@ HOME_PAGE = """
           <div class="card-body">
             <h5 class="card-title">Phishing URL</h5>
             <p class="card-text">Paste any link to detect phishing websites.</p>
-            <a href="/url/" class="btn btn-primary w-100">Try URL Check</a> <!-- ✅ Use direct link to blueprint route -->
+            <a href="/url/" class="btn btn-primary w-100">Try URL Check</a> 
           </div>
         </div>
       </div>

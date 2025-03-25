@@ -5,9 +5,9 @@ from sms_filter.model_utils import train_model, classify_message
 sms_bp = Blueprint('sms', __name__, url_prefix='/sms')
 
 # Train model on blueprint load
-print("🔁 Training SMS filter model...")
+print("Training SMS filter model...")
 model, vectorizer = train_model()
-print("✅ SMS model trained successfully!")
+print("SMS model trained successfully!")
 
 HTML_PAGE = """
 <!doctype html>

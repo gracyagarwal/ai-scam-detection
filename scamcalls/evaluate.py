@@ -26,12 +26,12 @@ texts = df["transcript"].tolist()
 labels = df["label"].tolist()
 
 # ==== LOAD MODEL ====
-print("📦 Loading model from:", MODEL_DIR)
+print(" Loading model from:", MODEL_DIR)
 tokenizer = BertTokenizer.from_pretrained(MODEL_DIR)
 model = BertForSequenceClassification.from_pretrained(MODEL_DIR)
 
 # ==== INFERENCE IN BATCHES ====
-print("🔍 Running inference...")
+print(" Running inference...")
 all_preds = []
 
 model.eval()
@@ -46,7 +46,7 @@ with torch.no_grad():
         all_preds.extend(preds)
 
 # ==== EVALUATION ====
-print("\n📋 Classification Report:")
+print("\n Classification Report:")
 print(classification_report(labels, all_preds, target_names=["Normal", "Fraud"]))
 
 cm = confusion_matrix(labels, all_preds)

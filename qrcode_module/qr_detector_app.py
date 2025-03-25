@@ -8,11 +8,11 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), 'qr_malware_model.keras')
 
 # Load the saved model (only if it exists)
 if os.path.exists(MODEL_PATH):
-    print("\n📂 Loading existing model...")
+    print("\nLoading existing model...")
     model = tf.keras.models.load_model(MODEL_PATH)
-    print("✅ Model loaded successfully!")
+    print("Model loaded successfully!")
 else:
-    raise FileNotFoundError(f"\n❌ No model found at {MODEL_PATH}. Please train and save the model first.")
+    raise FileNotFoundError(f"\nNo model found at {MODEL_PATH}. Please train and save the model first.")
 
 def preprocess_image(image_path):
     """Preprocess the QR code image for prediction."""

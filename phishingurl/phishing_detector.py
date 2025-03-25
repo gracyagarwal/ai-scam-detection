@@ -141,7 +141,7 @@ def check_url_accessibility(url):
 
 def check_url(url):
     try:
-        lazy_load_model()  # 🟢 Load model only when needed
+        lazy_load_model()  # Load model only when needed
 
         is_accessible, formatted_url = check_url_accessibility(url)
         features = extract_url_features(formatted_url)
