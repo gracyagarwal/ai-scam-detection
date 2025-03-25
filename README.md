@@ -43,5 +43,3 @@ The platform currently supports detection for the following scam types:
 ---
 
 This project is developed as part of an academic capstone and is intended for educational purposes.
-## 📁 Project Structure
-
