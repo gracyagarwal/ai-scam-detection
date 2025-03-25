@@ -5,13 +5,13 @@
 
 ---
 
-## 📌 Overview
+## Overview
 
 This project is a modular AI-powered web application built to detect and prevent a variety of digital scams prevalent in India. It provides a simple user interface where users can analyze different types of suspicious inputs using state-of-the-art machine learning models.
 
 ---
 
-## 🚀 Features
+## Features
 
 The platform currently supports detection for the following scam types:
 
