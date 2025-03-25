@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Spam Detector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .history-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">SMS Spam Detector</h1>
+        <div class="row">
+            <div class="col-md-12">
+                <form id="smsForm" class="mb-4">
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Enter your message:</label>
+                        <textarea class="form-control" id="message" rows="4" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Check Message</button>
+                </form>
+                
+                <div class="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Analyzing message...</p>
+                </div>
+
+                <div id="result" class="result-box">
+                    <h4>Result:</h4>
+                    <p id="classification"></p>
+                </div>
+
+                <div id="history" class="mt-4">
+                    <h3>Recent Classifications</h3>
+                    <div id="historyList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('smsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const message = document.getElementById('message').value;
+            const loading = document.querySelector('.loading');
+            const result = document.getElementById('result');
+            
+            // Show loading
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            
+            try {
+                const response = await fetch('/classify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `message=${encodeURIComponent(message)}`
+                });
+                
+                const data = await response.json();
+                
+                // Update result
+                const classification = document.getElementById('classification');
+                classification.textContent = `This message is classified as: ${data.classification}`;
+                result.style.backgroundColor = data.class_color === 'red' ? '#ffe6e6' : '#e6ffe6';
+                result.style.display = 'block';
+                
+                // Add to history
+                addToHistory(message, data.classification, data.class_color);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                result.style.backgroundColor = '#ffe6e6';
+                classification.textContent = 'Error analyzing message. Please try again.';
+                result.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        });
+
+        function addToHistory(message, classification, color) {
+            const historyList = document.getElementById('historyList');
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.style.backgroundColor = color === 'red' ? '#ffe6e6' : '#e6ffe6';
+            item.innerHTML = `
+                <strong>${classification}</strong>
+                <br>
+                <small>${message}</small>
+            `;
+            historyList.insertBefore(item, historyList.firstChild);
+            
+            // Keep only last 5 items
+            while (historyList.children.length > 5) {
+                historyList.removeChild(historyList.lastChild);
+            }
+        }
+    </script>
+</body>
+</html> 

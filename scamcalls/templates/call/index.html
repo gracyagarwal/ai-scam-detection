@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scam Call Detector</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <script>
+        function detectScam() {
+            let text = document.getElementById("call_text").value;
+            let resultDiv = document.getElementById("result");
+
+            if (!text) {
+                resultDiv.innerHTML = `<div class="alert alert-warning">Please enter a call transcript.</div>`;
+                return;
+            }
+
+            // Show loading animation
+            resultDiv.innerHTML = `<div class="spinner-border text-primary" role="status"></div> Checking...`;
+
+            fetch("/predict", {
+                method: "POST",
+                body: new URLSearchParams({ "call_text": text }),
+                headers: { "Content-Type": "application/x-www-form-urlencoded" }
+            })
+            .then(response => response.json())
+            .then(data => {
+                let colorClass = data.label === "Fraud" ? "danger" : "success";
+                resultDiv.innerHTML = `
+                    <div class="alert alert-${colorClass}">
+                        <b>Prediction:</b> ${data.label} <br> 
+                        <b>Confidence:</b> ${data.confidence}
+                    </div>`;
+            });
+        }
+
+        function uploadAudio() {
+            let formData = new FormData();
+            let audioFile = document.getElementById("audio_file").files[0];
+            let transcriptDiv = document.getElementById("transcript");
+
+            if (!audioFile) {
+                transcriptDiv.innerHTML = `<div class="alert alert-warning">Please select an audio file.</div>`;
+                return;
+            }
+
+            // Show loading animation
+            transcriptDiv.innerHTML = `<div class="spinner-border text-success" role="status"></div> Transcribing...`;
+
+            formData.append("audio", audioFile);
+
+            fetch("/transcribe", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                let colorClass = data.label === "Fraud" ? "danger" : "success";
+                transcriptDiv.innerHTML = `
+                    <div class="alert alert-info"><b>Transcribed Text:</b> ${data.transcript}</div>
+                    <div class="alert alert-${colorClass}">
+                        <b>Prediction:</b> ${data.label} <br>
+                        <b>Confidence:</b> ${data.confidence}
+                    </div>`;
+            });
+        }
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h2, h3 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body class="d-flex justify-content-center">
+    <div class="container">
+        <h2>Scam Call Detector</h2>
+
+        <!-- Text Input for Manual Entry -->
+        <div class="mb-4">
+            <textarea id="call_text" rows="4" class="form-control" placeholder="Enter call transcript..."></textarea>
+            <br>
+            <button class="btn btn-primary w-100" onclick="detectScam()">Check</button>
+        </div>
+
+        <div id="result"></div>
+
+        <hr>
+
+        <!-- File Upload for Audio -->
+        <h3>Upload Call Recording</h3>
+        <input type="file" id="audio_file" accept=".mp3,.wav" class="form-control">
+        <br>
+        <button class="btn btn-success w-100" onclick="uploadAudio()">Upload & Transcribe</button>
+
+        <div id="transcript" class="mt-3"></div>
+    </div>
+</body>
+</html>
