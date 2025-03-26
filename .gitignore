@@ -1,29 +1,29 @@
-# 🚫 Ignore virtual environments
+# Ignore virtual environments
 venv/
 venv310/
 
-# 🚫 Ignore Python cache files
+# Ignore Python cache files
 __pycache__/
 *.pyc
 
-# 🚫 Ignore model weights (you can keep these locally, they're large)
+# Ignore model weights 
 *.keras
 *.safetensors
 *.pt
 *.h5
 
-# 🚫 Ignore audio uploads (temporary user files)
+# Ignore audio uploads 
 */uploads/*
 !*/uploads/.gitkeep
 
-# 🚫 Ignore QR dataset images
+# Ignore QR dataset images
 qrcode_module/archive/
 
-# 🚫 Ignore Jupyter notebooks (optional – uncomment if needed)
+# Ignore Jupyter notebooks 
 # *.ipynb
 
 
-# ✅ Allow config/model/tokenizer files for HuggingFace
+# Allow config/model/tokenizer files for HuggingFace
 !*/new_scam_call_model/config.json
 !*/new_scam_call_model/tokenizer_config.json
 !*/new_scam_call_model/vocab.txt
