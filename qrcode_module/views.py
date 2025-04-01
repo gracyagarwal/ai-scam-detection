@@ -153,7 +153,6 @@ QR_HTML = """
             <p><strong>Status:</strong> {{ result }}</p>
             <p><strong>Confidence:</strong> {{ confidence }}%</p>
             <p><strong>QR Content:</strong> {{ qr_data }}</p>
-            <p><strong>Reason:</strong> {{ reason }}</p>
         </div>
     </div>
     {% else %}
@@ -191,7 +190,6 @@ def qr_home():
     is_malicious = False
     confidence = 0.0
     qr_data = ''
-    reason = ''
     image_url = None
 
     if request.method == 'POST':
@@ -221,14 +219,12 @@ def qr_home():
                     result = 'Benign'
                     is_malicious = False
                     confidence = 100
-                    reason = "URL appears safe on live check"
                 else:
                     image = preprocess_image(filepath)
                     pred = model.predict(image)[0][0]
                     threshold = 0.5
                     is_malicious = pred > threshold
                     confidence = pred * 100 if is_malicious else (1 - pred) * 100
-                    reason = "Model used"
                     qr_data = display_qr_data
                     result = "Malicious" if is_malicious else "Benign"
 
@@ -243,5 +239,4 @@ def qr_home():
         is_malicious=is_malicious,
         confidence=round(confidence, 2),
         qr_data=qr_data,
-        reason=reason
     )

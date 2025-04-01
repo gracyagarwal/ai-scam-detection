@@ -16,7 +16,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Actual dataset path
-QR_DATASET_PATH = 'C:\\Users\\Gracy\\OneDrive\\Desktop\\vit\\24-25winter\\project-2\\qrcode_module\\archive\\QR codes'
+QR_DATASET_PATH = 'C:\\Users\\Gracy\\OneDrive\\Desktop\\vit\\24-25winter\\project-2\\qrcode_module\\archive\\QR codes cleaned'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 MODEL_PATH = 'qr_malware_model.keras'
 
@@ -93,8 +93,8 @@ class QRDataGenerator(tf.keras.utils.Sequence):
 # ==== Dataset Loader ====
 def load_and_preprocess_dataset():
     print("\nLoading dataset...")
-    benign_path = os.path.join(QR_DATASET_PATH, 'benign', 'benign')
-    malicious_path = os.path.join(QR_DATASET_PATH, 'malicious', 'malicious')
+    benign_path = os.path.join(QR_DATASET_PATH, 'benign')
+    malicious_path = os.path.join(QR_DATASET_PATH, 'malicious')
 
     benign_files = glob.glob(os.path.join(benign_path, '*'))
     malicious_files = glob.glob(os.path.join(malicious_path, '*'))
