@@ -16,8 +16,8 @@ def preprocess_image(path):
     return np.expand_dims(img, axis=-1)
 
 # Load image paths
-benign_dir = "archive/QR codes/benign/benign"
-malicious_dir = "archive/QR codes/malicious/malicious"
+benign_dir = "archive/QR codes cleaned/benign"
+malicious_dir = "archive/QR codes cleaned/malicious"
 
 benign_files = glob.glob(os.path.join(benign_dir, "*.png"))
 malicious_files = glob.glob(os.path.join(malicious_dir, "*.png"))
