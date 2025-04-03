@@ -122,6 +122,6 @@ def classify():
     result = classify_message(message, model)
     return jsonify({
         'message': message,
-        'classification': 'SPAM' if result == 'spam' else 'HAM',
+        'classification': 'SPAM' if result == 'spam' else 'GENUINE',
         'class_color': 'red' if result == 'spam' else 'green'
     })

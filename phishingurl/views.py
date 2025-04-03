@@ -60,7 +60,7 @@ HOME_HTML = """
     </div>
     {% endif %}
     <div style="margin-top: 30px; text-align: center;">
-        <a href="{{ url_for('index') }}">
+        <a href="{{ url_for('home') }}">
             <button style="padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;">
                 ⬅ Back to Home
             </button>

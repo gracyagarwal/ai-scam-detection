@@ -51,6 +51,12 @@ HOME_HTML = """
             background-color: #e8f5e9;
             color: #1b5e20;
         }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+            margin: 20px auto;
+        }
+
     </style>
 </head>
 <body>
@@ -89,10 +95,28 @@ HOME_HTML = """
 </div>
 
 <script>
+const resetLoader = (target) => {
+    target.className = "result-box d-none";  // reset background and hide
+    target.innerHTML = "";
+};
+
+const showLoader = (target) => {
+    resetLoader(target);
+    target.innerHTML = `<div class="text-center"><div class="spinner-border text-light" role="status"><span class="visually-hidden">Loading...</span></div></div>`;
+    target.classList.remove("d-none");
+};
+
+const hideLoader = (target, content, label) => {
+    target.className = "result-box " + (label === "Fraud" ? "fraud" : "normal");
+    target.innerHTML = content;
+};
+
 document.getElementById("textForm").addEventListener("submit", async function(e) {
     e.preventDefault();
     const text = document.getElementById("call_text").value;
     const resBox = document.getElementById("result");
+
+    showLoader(resBox);
 
     const response = await fetch("/call/predict", {
         method: "POST",
@@ -100,9 +124,8 @@ document.getElementById("textForm").addEventListener("submit", async function(e)
         body: new URLSearchParams({ call_text: text })
     });
     const data = await response.json();
-    resBox.className = "result-box " + (data.label === "Fraud" ? "fraud" : "normal");
-    resBox.innerHTML = `<b>Result:</b> ${data.label}<br><b>Confidence:</b> ${data.confidence}`;
-    resBox.classList.remove("d-none");
+    const resultHTML = `<b>Result:</b> ${data.label}<br><b>Confidence:</b> ${data.confidence}`;
+    hideLoader(resBox, resultHTML, data.label);
 });
 
 document.getElementById("audioForm").addEventListener("submit", async function(e) {
@@ -112,16 +135,19 @@ document.getElementById("audioForm").addEventListener("submit", async function(e
     formData.append("audio", audioFile);
     const resBox = document.getElementById("audioResult");
 
+    showLoader(resBox);
+
     const response = await fetch("/call/transcribe", {
         method: "POST",
         body: formData
     });
     const data = await response.json();
-    resBox.className = "result-box " + (data.label === "Fraud" ? "fraud" : "normal");
-    resBox.innerHTML = `<b>Transcript:</b> ${data.transcript}<br><b>Result:</b> ${data.label}<br><b>Confidence:</b> ${data.confidence}`;
-    resBox.classList.remove("d-none");
+    const resultHTML = `<b>Transcript:</b> ${data.transcript}<br><b>Result:</b> ${data.label}<br><b>Confidence:</b> ${data.confidence}`;
+    hideLoader(resBox, resultHTML, data.label);
 });
 </script>
+
+
 </body>
 </html>
 """

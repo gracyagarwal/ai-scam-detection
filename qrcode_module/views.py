@@ -99,16 +99,14 @@ QR_HTML = """
         <img id="preview" class="preview" src="{{ image_url }}" alt="QR Preview">
         <div class="result {{ 'malicious' if is_malicious else 'benign' }}">
             <p><strong>Status:</strong> {{ result }}</p>
-            <p><strong>Confidence:</strong> {{ confidence }}%</p>
             <p><strong>QR Content:</strong> {{ qr_data }}</p>
-            <p><strong>Checks:</strong> {{ checks|join(', ') }}</p>
         </div>
     </div>
     {% else %}
     <img id="preview" class="preview" src="#" alt="QR Preview" style="display: none;">
     {% endif %}
     <div style="margin-top: 30px; text-align: center;">
-        <a href="{{ url_for('qr.qr_home') }}">
+        <a href="{{ url_for('home') }}">
             <button style="padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;">
                 ⬅ Back to Home
             </button>
@@ -277,7 +275,5 @@ def qr_home():
         image_url=image_url,
         result=result,
         is_malicious=is_malicious,
-        confidence=round(confidence, 2),
-        qr_data=qr_data,
-        checks=[]  
+        qr_data=qr_data
     )

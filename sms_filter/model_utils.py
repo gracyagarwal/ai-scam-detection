@@ -31,7 +31,7 @@ def preprocess_text(text):
 # ------------------------ #
 # LOAD AND CLEAN DATA
 # ------------------------ #
-def load_data(file_path="spam_ham_india.csv"):
+def load_data(file_path="sms_filter\spam_ham_india.csv"):
     df = pd.read_csv(file_path, encoding='latin1')
     df = df.dropna(subset=['Msg'])
     df.columns = ['message', 'label']
