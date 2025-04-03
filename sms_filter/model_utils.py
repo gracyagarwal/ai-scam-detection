@@ -1,163 +1,77 @@
 import pandas as pd
 import re
 import nltk
-from langdetect import detect
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline, FeatureUnion
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, accuracy_score
 
 # Download required NLTK resources
 nltk.download('stopwords')
 nltk.download('wordnet')
 
-# Initialize English NLP tools
-english_stopwords = set(stopwords.words('english'))
-english_lemmatizer = WordNetLemmatizer()
+# Initialize NLP tools
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
 
 # ------------------------ #
-# PREPROCESSING FUNCTIONS
+# TEXT PREPROCESSING
 # ------------------------ #
-def preprocess_english(text):
-    """
-    Preprocesses English text:
-      - Converts text to lowercase,
-      - Removes URLs,
-      - Removes punctuation and numbers,
-      - Tokenizes and lemmatizes while removing English stopwords.
-    """
+def preprocess_text(text):
     if isinstance(text, str):
         text = text.lower()
-        text = re.sub(r'https?://\S+|www\.\S+', '', text)
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        text = re.sub(r'https?://\S+|www\.\S+', '', text)  # remove URLs
+        text = re.sub(r'[^a-zA-Z\s]', '', text)  # remove punctuation and numbers
         words = text.split()
-        return ' '.join(english_lemmatizer.lemmatize(word) for word in words if word not in english_stopwords)
-    return ""
-
-def preprocess_hindi(text):
-    """
-    Preprocesses Hindi text:
-      - Removes URLs,
-      - Removes all characters except Devanagari (Unicode 0900-097F) and whitespace.
-      - If the result is empty, returns "none" as a fallback token.
-    """
-    if isinstance(text, str):
-        text = text.strip()
-        text = re.sub(r'https?://\S+|www\.\S+', '', text)
-        # Remove all characters except Devanagari and whitespace.
-        text = re.sub(r'[^\u0900-\u097F\s]', '', text)
-        text = text.strip()
-        if text == "":
-            return "none"
-        return text
+        return ' '.join(lemmatizer.lemmatize(word) for word in words if word not in stop_words)
     return ""
 
 # ------------------------ #
-# BUILD PIPELINES
+# LOAD AND CLEAN DATA
 # ------------------------ #
-def build_english_pipeline():
-    """
-    Builds an English pipeline using TF-IDF features and Logistic Regression.
-    """
-    pipeline = Pipeline([
-        ('tfidf', TfidfVectorizer(preprocessor=preprocess_english,
-                                  ngram_range=(1, 3),
-                                  max_df=0.9,
-                                  min_df=3,
-                                  stop_words='english',
-                                  sublinear_tf=True)),
-        ('clf', LogisticRegression(max_iter=1000, class_weight='balanced'))
-    ])
-    return pipeline
-
-def build_hindi_pipeline():
-    """
-    Builds a Hindi pipeline that combines word-level and character-level TF-IDF features,
-    using our best-found parameters:
-      - Word-level: ngram_range (1,2), min_df=2
-      - Character-level: ngram_range (2,5), min_df=1
-      - Classifier: LogisticRegression with C=10.
-    """
-    word_vectorizer = TfidfVectorizer(preprocessor=preprocess_hindi,
-                                      analyzer='word',
-                                      ngram_range=(1, 2),
-                                      max_df=1.0,
-                                      min_df=2,
-                                      stop_words=None,  # No stopword removal here
-                                      sublinear_tf=True)
-    char_vectorizer = TfidfVectorizer(preprocessor=preprocess_hindi,
-                                      analyzer='char',
-                                      ngram_range=(2, 5),
-                                      max_df=1.0,
-                                      min_df=1,
-                                      sublinear_tf=True)
-    combined_features = FeatureUnion([
-        ('word', word_vectorizer),
-        ('char', char_vectorizer)
-    ])
-    pipeline = Pipeline([
-        ('features', combined_features),
-        ('clf', LogisticRegression(C=10, max_iter=1000, class_weight='balanced'))
-    ])
-    return pipeline
-
-# ------------------------ #
-# DATA LOADING
-# ------------------------ #
-def load_combined_data(file_path="combined_dataset.csv"):
-    """
-    Loads the combined dataset.
-    Expected columns: 'Msg', 'label', 'language'
-    """
-    df = pd.read_csv(file_path, encoding="latin1")
+def load_data(file_path="spam_ham_india.csv"):
+    df = pd.read_csv(file_path, encoding='latin1')
     df = df.dropna(subset=['Msg'])
-    df.columns = ['Msg', 'label', 'language']
+    df.columns = ['message', 'label']
     df['label'] = df['label'].str.strip().str.lower()
-    df['language'] = df['language'].str.strip().str.lower()
     return df
 
 # ------------------------ #
 # TRAIN MODEL
 # ------------------------ #
 def train_model():
-    """
-    Trains separate pipelines for English and Hindi using the combined dataset.
-    Returns a dictionary with keys 'english' and 'hindi' mapping to the respective trained pipelines.
-    """
-    df = load_combined_data()
-    # Split the data by language
-    english_data = df[df['language'] == 'english']
-    hindi_data = df[df['language'] == 'hindi']
-    
-    eng_pipeline = build_english_pipeline()
-    hin_pipeline = build_hindi_pipeline()
-    
-    if not english_data.empty:
-        X_eng = english_data['Msg']
-        y_eng = english_data['label']
-        eng_pipeline.fit(X_eng, y_eng)
-    if not hindi_data.empty:
-        X_hin = hindi_data['Msg']
-        y_hin = hindi_data['label']
-        hin_pipeline.fit(X_hin, y_hin)
-    
-    # Return the pipelines as a dictionary
-    return {"english": eng_pipeline, "hindi": hin_pipeline}
+    df = load_data()
+    df['processed'] = df['message'].apply(preprocess_text)
+
+    vectorizer = TfidfVectorizer(
+        ngram_range=(1, 3),
+        max_df=0.9,
+        min_df=3,
+        stop_words='english',
+        sublinear_tf=True
+    )
+    X = vectorizer.fit_transform(df['processed'])
+    y = df['label']
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+
+    model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+    print("\nModel Evaluation:\n" + "=" * 60)
+    print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+    print(classification_report(y_test, y_pred))
+
+    return model, vectorizer
 
 # ------------------------ #
-# CLASSIFY MESSAGE
+# CLASSIFY A SINGLE MESSAGE
 # ------------------------ #
-def classify_message(text, model):
-    """
-    Classifies an input message using the appropriate pipeline.
-    The model parameter is a dictionary with keys 'english' and 'hindi'.
-    """
-    try:
-        lang = detect(text)
-        if lang == 'hi':
-            return model["hindi"].predict([text])[0]
-        else:
-            return model["english"].predict([text])[0]
-    except Exception as e:
-        return "error"
+def classify_message(text, model_tuple):
+    model, vectorizer = model_tuple
+    processed = preprocess_text(text)
+    vec = vectorizer.transform([processed])
+    return model.predict(vec)[0]

@@ -1,252 +1,139 @@
-import pandas as pd
+import os
 import re
+import logging
+import argparse
+
+import pandas as pd
 import nltk
-from langdetect import detect
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline, FeatureUnion
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, accuracy_score
+
+# Setup logging configuration
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Download required NLTK resources
 nltk.download('stopwords')
 nltk.download('wordnet')
 
-# Initialize English NLP tools
-english_stopwords = set(stopwords.words('english'))
-english_lemmatizer = WordNetLemmatizer()
-
-# For Hindi tokenization we use the Indic NLP Library
-from indicnlp.tokenize import indic_tokenize
-
-# Optionally, you can define a refined Hindi stopword list
-hindi_stopwords = set([
-    'के', 'का', 'एक', 'में', 'है', 'यह', 'और', 'से', 'हैं', 'को', 'पर', 'इस', 'होता', 'कि', 'जो', 'कर', 'मे',
-    'गया', 'करने', 'किया', 'लिया', 'गये', 'अपने', 'हो', 'उन्हें', 'भी', 'पे', 'जैसा', 'तक', 'उनकी', 'ही',
-    'अभी', 'इसके', 'साथ', 'अपना', 'आप', 'पूरी', 'उसके', 'बिलकुल', 'भीतर', 'उनका', 'था', 'सकते', 'इसमें',
-    'दो', 'होने', 'वह', 'वे', 'करते', 'बहुत', 'कुछ', 'वो', 'करना', 'वर्ग', 'कई', 'करें', 'होती', 'अपनी',
-    'उनको', 'जा', 'कहा', 'हुआ', 'जब', 'होते', 'कोई', 'हुई', 'वहाँ', 'जहाँ', 'मेरे', 'कुछ', 'सभी', 'करता',
-    'उनकी', 'तरह', 'उस', 'आदि'
-])
+# Initialize NLP tools
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
 
 # ------------------------ #
-# LANGUAGE DETECTION
+# TEXT PREPROCESSING
 # ------------------------ #
-def detect_language(text):
-    """Detects language of the input text using langdetect."""
-    try:
-        lang = detect(text)
-        if lang == 'hi':
-            return 'hindi'
-    except Exception:
-        pass
-    return 'english'
-
-# ------------------------ #
-# PREPROCESSING FUNCTIONS
-# ------------------------ #
-def preprocess_english(text):
+def preprocess_text(text):
     """
-    Preprocesses English text:
-      - Lowercases text,
-      - Removes URLs,
-      - Removes punctuation and numbers,
-      - Filters out stopwords and applies lemmatization.
+    Preprocesses the input text by lowercasing, removing URLs, punctuation,
+    and stopwords, and applying lemmatization.
     """
     if isinstance(text, str):
         text = text.lower()
-        text = re.sub(r'https?://\S+|www\.\S+', '', text)
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        text = re.sub(r'https?://\S+|www\.\S+', '', text)  # remove URLs
+        text = re.sub(r'[^a-zA-Z\s]', '', text)  # remove punctuation and numbers
         words = text.split()
-        return ' '.join(english_lemmatizer.lemmatize(word) for word in words if word not in english_stopwords)
-    return ""
-
-def preprocess_hindi(text):
-    """
-    Preprocesses Hindi text using Indic NLP's tokenization:
-      - Removes URLs,
-      - Uses the Indic NLP tokenizer to properly segment Hindi text.
-      - Optionally, you can remove stopwords from the tokenized output.
-    """
-    if isinstance(text, str):
-        text = text.strip()
-        text = re.sub(r'https?://\S+|www\.\S+', '', text)
-        # Tokenize using Indic NLP's word_tokenize
-        # This function tokenizes Devanagari properly.
-        tokens = list(indic_tokenize.trivial_tokenize(text, lang='hi'))
-        # Optionally remove stopwords:
-        # tokens = [t for t in tokens if t not in hindi_stopwords]
-        processed = " ".join(tokens)
-        if processed == "":
-            return "none"
-        return processed
+        return ' '.join(lemmatizer.lemmatize(word) for word in words if word not in stop_words)
     return ""
 
 # ------------------------ #
-# BUILD ENGLISH PIPELINE
+# LOAD AND CLEAN DATA
 # ------------------------ #
-def build_english_pipeline():
-    pipeline = Pipeline([
-        ('tfidf', TfidfVectorizer(preprocessor=preprocess_english,
-                                  ngram_range=(1, 3),
-                                  max_df=0.9,
-                                  min_df=3,
-                                  stop_words='english',
-                                  sublinear_tf=True)),
-        ('clf', LogisticRegression(max_iter=1000, class_weight='balanced'))
-    ])
-    return pipeline
+def load_data(file_path="spam_ham_india.csv"):
+    """
+    Loads and cleans the dataset from a CSV file.
+    The file is expected to have columns: 'Msg' and 'Label'.
+    """
+    if not os.path.exists(file_path):
+        logging.error(f"File {file_path} not found.")
+        raise FileNotFoundError(f"{file_path} not found.")
+    try:
+        df = pd.read_csv(file_path, encoding='latin1')
+    except Exception as e:
+        logging.error("Error reading the CSV file: " + str(e))
+        raise e
 
-# ------------------------ #
-# BUILD HINDI PIPELINE
-# ------------------------ #
-def build_hindi_pipeline():
-    """
-    Builds a Hindi pipeline that combines word-level and character-level TF-IDF features.
-    Uses the updated Hindi preprocessing function that leverages Indic NLP tokenization.
-    """
-    word_vectorizer = TfidfVectorizer(preprocessor=preprocess_hindi,
-                                      analyzer='word',
-                                      ngram_range=(1, 2),
-                                      max_df=1.0,
-                                      min_df=1,
-                                      stop_words=None,  # You can experiment with hindi_stopwords here.
-                                      sublinear_tf=True)
-    char_vectorizer = TfidfVectorizer(preprocessor=preprocess_hindi,
-                                      analyzer='char',
-                                      ngram_range=(2, 5),
-                                      max_df=1.0,
-                                      min_df=1,
-                                      sublinear_tf=True)
-    combined_features = FeatureUnion([
-        ('word', word_vectorizer),
-        ('char', char_vectorizer)
-    ])
-    pipeline = Pipeline([
-        ('features', combined_features),
-        ('clf', LogisticRegression(max_iter=1000, class_weight='balanced'))
-    ])
-    return pipeline
-
-# ------------------------ #
-# DATA LOADING
-# ------------------------ #
-def load_combined_data(file_path="combined_dataset.csv"):
-    """
-    Loads the combined dataset.
-    Expected columns: 'Msg', 'label', 'language'
-    """
-    df = pd.read_csv(file_path, encoding='latin1')
     df = df.dropna(subset=['Msg'])
-    df.columns = ['Msg', 'label', 'language']
+    df.columns = ['message', 'label']
     df['label'] = df['label'].str.strip().str.lower()
-    df['language'] = df['language'].str.strip().str.lower()
     return df
 
 # ------------------------ #
-# GRID SEARCH FOR HINDI PIPELINE
+# TRAIN THE MODEL
 # ------------------------ #
-def grid_search_hindi_pipeline(hindi_data):
+def train_model():
     """
-    Performs grid search on the Hindi pipeline using the Hindi subset of data.
-    Prints the best parameters and best score.
+    Trains a Logistic Regression model using a TF-IDF vectorizer.
+    Returns the trained model and the vectorizer.
     """
-    hin_pipeline = build_hindi_pipeline()
-    param_grid = {
-        "clf__C": [0.1, 1, 10],
-        "features__word__ngram_range": [(1,2), (1,3)],
-        "features__word__min_df": [1, 2],
-        "features__char__ngram_range": [(2,5), (3,5)],
-        "features__char__min_df": [1, 2]
-    }
-    X = hindi_data['Msg']
-    y = hindi_data['label']
-    grid = GridSearchCV(hin_pipeline, param_grid, cv=3, scoring='accuracy', n_jobs=-1, verbose=2)
-    grid.fit(X, y)
-    print("Best parameters found:", grid.best_params_)
-    print("Best score:", grid.best_score_)
-    return grid.best_estimator_
+    df = load_data()
+    df['processed'] = df['message'].apply(preprocess_text)
+
+    vectorizer = TfidfVectorizer(
+        ngram_range=(1, 3),
+        max_df=0.9,
+        min_df=3,
+        stop_words='english',
+        sublinear_tf=True
+    )
+    X = vectorizer.fit_transform(df['processed'])
+    y = df['label']
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+
+    model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+    logging.info("\nModel Evaluation:\n" + "=" * 60)
+    logging.info(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+    logging.info("\n" + classification_report(y_test, y_pred))
+
+    return model, vectorizer
 
 # ------------------------ #
-# TRAINING ALL MODELS
+# CLASSIFY A SINGLE MESSAGE
 # ------------------------ #
-def train_models():
+def classify_message(message, model, vectorizer):
     """
-    Trains separate pipelines for English and Hindi messages.
-    For Hindi, performs grid search for parameter tuning.
-    Returns the trained English pipeline and Hindi pipeline.
+    Classifies a single message using the trained model.
     """
-    df = load_combined_data()
-    english_data = df[df['language'] == 'english']
-    hindi_data = df[df['language'] == 'hindi']
-    
-    eng_pipeline = build_english_pipeline()
-    if not english_data.empty:
-        X_eng = english_data['Msg']
-        y_eng = english_data['label']
-        X_train, X_test, y_train, y_test = train_test_split(X_eng, y_eng, test_size=0.2, stratify=y_eng, random_state=42)
-        eng_pipeline.fit(X_train, y_train)
-        y_pred_eng = eng_pipeline.predict(X_test)
-        print("\nEnglish Model Evaluation:\n" + "="*60)
-        print(f"Accuracy: {accuracy_score(y_test, y_pred_eng):.4f}")
-        print(classification_report(y_test, y_pred_eng))
-    else:
-        print("No English data available.")
-    
-    if not hindi_data.empty:
-        print("\nPerforming grid search for Hindi pipeline...")
-        hin_pipeline = grid_search_hindi_pipeline(hindi_data)
-        X_hin = hindi_data['Msg']
-        y_hin = hindi_data['label']
-        X_train, X_test, y_train, y_test = train_test_split(X_hin, y_hin, test_size=0.2, stratify=y_hin, random_state=42)
-        hin_pipeline.fit(X_train, y_train)
-        y_pred_hin = hin_pipeline.predict(X_test)
-        print("\nHindi Model Evaluation (after grid search):\n" + "="*60)
-        print(f"Accuracy: {accuracy_score(y_test, y_pred_hin):.4f}")
-        print(classification_report(y_test, y_pred_hin))
-        print("Confusion Matrix:")
-        print(confusion_matrix(y_test, y_pred_hin))
-    else:
-        print("No Hindi data available.")
-    
-    return eng_pipeline, hin_pipeline
-
-# ------------------------ #
-# MULTILINGUAL CLASSIFICATION
-# ------------------------ #
-def classify_message_multilingual(message, eng_pipeline, hin_pipeline):
-    """Automatically detects language and uses the corresponding pipeline."""
-    lang = detect_language(message)
-    if lang == 'hindi':
-        pred = hin_pipeline.predict([message])[0]
-    else:
-        pred = eng_pipeline.predict([message])[0]
-    return pred
+    processed = preprocess_text(message)
+    vec = vectorizer.transform([processed])
+    return model.predict(vec)[0]
 
 # ------------------------ #
 # MAIN FUNCTION
 # ------------------------ #
 def main():
-    print("Training separate models for English and Hindi...")
-    eng_pipeline, hin_pipeline = train_models()
-    print("Model training complete.")
-    
-    # Sample test messages
-    sample_tests = [
-        {"message": "Get FREE recharge now at http://freerecharge.com", "expected_language": "english"},
-        {"message": "Hey, are we still on for dinner tonight?", "expected_language": "english"},
-        {"message": "आपका अकाउंट ब्लॉक हो रहा है, तुरंत वेरिफाई करें।", "expected_language": "hindi"},
-        {"message": "नया मोबाइल ऑफर अभी खरीदें!", "expected_language": "hindi"}
-    ]
-    
-    for test in sample_tests:
-        result = classify_message_multilingual(test["message"], eng_pipeline, hin_pipeline)
-        detected_lang = detect_language(test["message"])
-        print(f"\nMessage: {test['message']} (Detected: {detected_lang})")
-        print(f"Predicted Label: {'SPAM' if result=='spam' else 'HAM'}")
+    """
+    Main function to train the model and classify sample messages.
+    """
+    logging.info("Training SMS spam detection model with enhanced NLP pipeline...")
+    model, vectorizer = train_model()
+    logging.info("Model training complete.")
 
-    
+    sample_msgs = [
+        "Get FREE recharge now at http://freerecharge.com",
+        "Hey, are we still on for dinner tonight?",
+        "Congratulations! You've won a 5 lakh rupee lottery. Click now.",
+        "New episodes of your favorite show are streaming.",
+        "You’ve been selected for a luxury trip to Maldives!",
+        "Refer a friend and earn ₹500 instantly!",
+        "Your KYC is incomplete. Click now to avoid suspension."
+    ]
+
+    for msg in sample_msgs:
+        result = classify_message(msg, model, vectorizer)
+        label = "SPAM" if result == "spam" else "GENUINE"
+        print(f"\nMessage: {msg}\n→ Classified as: {label}")
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train SMS Spam Detection Model")
+    parser.add_argument("--file", type=str, default="spam_ham_india.csv", help="Path to the CSV dataset file")
+    args = parser.parse_args()
+    
     main()
