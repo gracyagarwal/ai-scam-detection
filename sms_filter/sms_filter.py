@@ -1,131 +1,106 @@
 import pandas as pd
-import numpy as np
+import re
+import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, accuracy_score
-import re
-import os
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 
+# Download NLTK resources
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+# Initialize NLP tools
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
+
+# ------------------------ #
+# TEXT PREPROCESSING
+# ------------------------ #
 def preprocess_text(text):
     if isinstance(text, str):
-        # Convert to lowercase
         text = text.lower()
-        # Remove extra whitespace
-        text = ' '.join(text.split())
+        text = re.sub(r'https?://\S+|www\.\S+', '', text)  # remove URLs
+        text = re.sub(r'[^a-zA-Z\s]', '', text)  # remove punctuation and numbers
+        words = text.split()
+        text = ' '.join(
+            lemmatizer.lemmatize(word)
+            for word in words if word not in stop_words
+        )
         return text
     return ""
 
+# ------------------------ #
+# LOAD AND CLEAN DATA
+# ------------------------ #
 def load_data():
-    # List of encodings to try
-    encodings = ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']
-    
-    for encoding in encodings:
-        try:
-            # First try with .csv extension
-            if os.path.exists('spam.csv'):
-                df = pd.read_csv('spam.csv', encoding=encoding)
-            # Then try without extension
-            elif os.path.exists('spam'):
-                df = pd.read_csv('spam', encoding=encoding)
-            else:
-                print("Error: Could not find the spam dataset file in the current directory.")
-                print("Please make sure either 'spam' or 'spam.csv' is in the same folder as this script.")
-                print(f"Current working directory: {os.getcwd()}")
-                exit(1)
-                
-            print(f"Successfully loaded spam dataset using {encoding} encoding")
-            print(f"Number of messages loaded: {len(df)}")
-            
-            # If we get here, the file was read successfully
-            break
-            
-        except UnicodeDecodeError:
-            # Try next encoding if this one failed
-            continue
-        except Exception as e:
-            print(f"Error reading the file: {str(e)}")
-            print("Please make sure the file is not corrupted and is in CSV format.")
-            exit(1)
-    else:
-        # If we get here, none of the encodings worked
-        print("Error: Could not read the file with any of the attempted encodings.")
-        print("Please check if the file is properly formatted and not corrupted.")
-        exit(1)
-    
-    # Rename columns for clarity
-    df.columns = ['label', 'message'] + list(df.columns[2:])
-    
-    # Convert labels to binary (spam = 1, ham = 0)
-    df['label'] = df['label'].map({'spam': 'spam', 'ham': 'genuine'})
-    
+    df = pd.read_csv("spam_ham_india.csv", encoding='latin1')
+    df = df.dropna(subset=['Msg'])  # remove rows with empty messages
+    df.columns = ['message', 'label']
+    df['label'] = df['label'].str.strip().str.lower()
     return df
 
+# ------------------------ #
+# TRAIN THE MODEL
+# ------------------------ #
 def train_model():
-    # Load dataset
     df = load_data()
-    
-    # Preprocess messages
-    df['processed_message'] = df['message'].apply(preprocess_text)
-    
-    # Create TF-IDF vectorizer
-    vectorizer = TfidfVectorizer(max_features=1000)
-    
-    # Transform text to TF-IDF features
-    X = vectorizer.fit_transform(df['processed_message'])
+    df['processed'] = df['message'].apply(preprocess_text)
+
+    vectorizer = TfidfVectorizer(
+        ngram_range=(1, 3),
+        max_df=0.9,
+        min_df=3,
+        stop_words='english',
+        sublinear_tf=True
+    )
+    X = vectorizer.fit_transform(df['processed'])
     y = df['label']
-    
-    # Split the data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Train the model
-    model = MultinomialNB()
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+
+    model = LogisticRegression(max_iter=1000, class_weight='balanced')
     model.fit(X_train, y_train)
-    
-    # Evaluate the model
+
     y_pred = model.predict(X_test)
-    print("\nModel Performance:")
-    print("-" * 50)
-    print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
-    print("\nDetailed Classification Report:")
+    print("\nModel Evaluation:\n" + "=" * 60)
+    print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
     print(classification_report(y_test, y_pred))
-    
+
     return model, vectorizer
 
+# ------------------------ #
+# CLASSIFY A SINGLE MESSAGE
+# ------------------------ #
 def classify_message(message, model, vectorizer):
-    # Preprocess the message
-    processed_message = preprocess_text(message)
-    
-    # Transform the message
-    message_vector = vectorizer.transform([processed_message])
-    
-    # Predict the class
-    prediction = model.predict(message_vector)[0]
-    
-    return prediction
+    processed = preprocess_text(message)
+    vec = vectorizer.transform([processed])
+    pred = model.predict(vec)[0]
+    return pred
 
+# ------------------------ #
+# MAIN FUNCTION
+# ------------------------ #
 def main():
-    print("Training SMS spam detection model...")
+    print("Training SMS spam detection model with enhanced NLP pipeline...")
     model, vectorizer = train_model()
-    
-    # Test with some example messages from the dataset
-    print("\nTesting some sample messages:")
-    print("-" * 50)
-    
-    test_messages = [
-        "Free entry in 2 a wkly comp to win FA Cup final tkts",
-        "I'm gonna be home soon and i don't want to talk about this stuff anymore tonight",
-        "URGENT! You have won a 1 week FREE membership in our £100,000 Prize Jackpot!",
-        "Even my brother is not like to speak with me. They treat me like aids patent."
-    ]
-    
-    for message in test_messages:
-        prediction = classify_message(message, model, vectorizer)
-        print(f"\nMessage: {message}")
-        print(f"Classification: {'SPAM' if prediction == 'spam' else 'GENUINE'}")
-        print("-" * 50)
+    print("Model training complete.")
 
-    print("\nThe model is now ready to classify new messages!")
-    
+    sample_msgs = [
+        "Get FREE recharge now at http://freerecharge.com",
+        "Hey, are we still on for dinner tonight?",
+        "Congratulations! You've won a 5 lakh rupee lottery. Click now.",
+        "New episodes of your favorite show are streaming.",
+        "You’ve been selected for a luxury trip to Maldives!",
+        "Refer a friend and earn ₹500 instantly!",
+        "Your KYC is incomplete. Click now to avoid suspension."
+    ]
+
+    for msg in sample_msgs:
+        result = classify_message(msg, model, vectorizer)
+        print(f"\nMessage: {msg}\n→ Classified as: {'SPAM' if result == 'spam' else 'GENUINE'}")
+
 if __name__ == "__main__":
-    main() 
+    main()

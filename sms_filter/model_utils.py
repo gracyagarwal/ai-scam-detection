@@ -1,33 +1,56 @@
-import os
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import re
+import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+lemmatizer = WordNetLemmatizer()
+stop_words = set(stopwords.words('english'))
+
+def preprocess_text(text):
+    if isinstance(text, str):
+        text = text.lower()
+        text = re.sub(r'https?://\S+|www\.\S+', '', text)
+        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        words = text.split()
+        return ' '.join(
+            lemmatizer.lemmatize(word)
+            for word in words if word not in stop_words
+        )
+    return ""
 
 def train_model():
-    # Get the absolute path to the spam.csv file
-    current_dir = os.path.dirname(__file__)
-    csv_path = os.path.join(current_dir, "spam.csv")
+    df = pd.read_csv("spam_ham_india.csv", encoding="latin1")
+    df = df.dropna(subset=['Msg'])
+    df.columns = ['message', 'label']
+    df['label'] = df['label'].str.strip().str.lower()
+    df['processed'] = df['message'].apply(preprocess_text)
 
-    # Load dataset
-    df = pd.read_csv(csv_path, encoding="latin1")[["v1", "v2"]]
-    df.columns = ["label", "text"]
-    df["label"] = df["label"].map({"spam": 1, "ham": 0})
+    vectorizer = TfidfVectorizer(
+        ngram_range=(1, 3),
+        max_df=0.9,
+        min_df=3,
+        stop_words='english',
+        sublinear_tf=True
+    )
+    X = vectorizer.fit_transform(df['processed'])
+    y = df['label']
 
-    # Train/test split
-    X_train, _, y_train, _ = train_test_split(df["text"], df["label"], test_size=0.2, random_state=42)
+    X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
 
-    # Vectorize
-    vectorizer = TfidfVectorizer()
-    X_train_vec = vectorizer.fit_transform(X_train)
-
-    # Train model
-    model = MultinomialNB()
-    model.fit(X_train_vec, y_train)
+    model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    model.fit(X_train, y_train)
 
     return model, vectorizer
 
 def classify_message(text, model, vectorizer):
-    vec = vectorizer.transform([text])
-    prediction = model.predict(vec)[0]
-    return "spam" if prediction == 1 else "genuine"
+    processed = preprocess_text(text)
+    vec = vectorizer.transform([processed])
+    pred = model.predict(vec)[0]
+    return pred
