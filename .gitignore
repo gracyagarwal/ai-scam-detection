@@ -22,6 +22,7 @@ qrcode_module/archive/
 # Ignore Jupyter notebooks 
 # *.ipynb
 
+config.py
 
 # Allow config/model/tokenizer files for HuggingFace
 !*/new_scam_call_model/config.json
