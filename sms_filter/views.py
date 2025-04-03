@@ -4,9 +4,9 @@ from sms_filter.model_utils import train_model, classify_message
 
 sms_bp = Blueprint('sms', __name__, url_prefix='/sms')
 
-# Train model on blueprint load
+# Train model on blueprint load (now returns a dictionary with keys 'english' and 'hindi')
 print("Training SMS filter model...")
-model, vectorizer = train_model()
+model = train_model()
 print("SMS model trained successfully!")
 
 HTML_PAGE = """
@@ -73,12 +73,12 @@ HTML_PAGE = """
   </div>
 
   <div style="margin-top: 30px; text-align: center;">
-        <a href="{{ url_for('home') }}">
-            <button style="padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;">
-                ⬅ Back to Home
-            </button>
-        </a>
-    </div>
+    <a href="{{ url_for('home') }}">
+      <button style="padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;">
+        ⬅ Back to Home
+      </button>
+    </a>
+  </div>
 
   <script>
     document.getElementById('smsForm').addEventListener('submit', async function(e) {
@@ -101,7 +101,6 @@ HTML_PAGE = """
         resultDiv.className = data.class_color;
         resultDiv.innerHTML = `<strong>Classification:</strong> ${data.classification}`;
       }
-
       resultDiv.style.display = 'block';
     });
   </script>
@@ -119,9 +118,10 @@ def classify():
     if not message:
         return jsonify({'error': 'No message provided'})
     
-    result = classify_message(message, model, vectorizer)
+    # Use the new classify_message that accepts the model dictionary
+    result = classify_message(message, model)
     return jsonify({
         'message': message,
-        'classification': 'SPAM' if result == 'spam' else 'GENUINE',
+        'classification': 'SPAM' if result == 'spam' else 'HAM',
         'class_color': 'red' if result == 'spam' else 'green'
     })

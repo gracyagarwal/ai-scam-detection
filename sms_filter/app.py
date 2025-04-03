@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request, jsonify
-from sms_filter import train_model, classify_message
+from model_utils import train_model, classify_message
 
 app = Flask(__name__)
 
-# Train the model when the app starts
+# Train the model when the app starts (returns a dictionary with 'english' and 'hindi' keys)
 print("Training the model...")
-model, vectorizer = train_model()
+model = train_model()
 print("Model training completed!")
 
 @app.route('/')
@@ -18,7 +18,8 @@ def classify():
     if not message:
         return jsonify({'error': 'No message provided'})
     
-    result = classify_message(message, model, vectorizer)
+    # classify_message now takes the message and the model dictionary
+    result = classify_message(message, model)
     return jsonify({
         'message': message,
         'classification': 'SPAM' if result == 'spam' else 'GENUINE',
@@ -26,4 +27,4 @@ def classify():
     })
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True)

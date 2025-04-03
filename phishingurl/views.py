@@ -1,7 +1,6 @@
-from flask import Blueprint, request, render_template_string, jsonify
+from flask import Blueprint, request, render_template_string, url_for
 import os
-import pandas as pd
-from .phishing_detector import check_url  # Import your function
+from .phishing_detector import check_url  # Ensure this import path is correct
 
 url_bp = Blueprint('url', __name__, url_prefix='/url')
 
@@ -55,29 +54,29 @@ HOME_HTML = """
         <input type="text" name="url" placeholder="Paste URL here" required>
         <button type="submit">Check URL</button>
     </form>
-
     {% if result %}
     <div class="result">
-        <pre style="margin: 0; white-space: pre-wrap;">{{ result }}</pre>
+        <pre style="margin: 0;">{{ result }}</pre>
     </div>
     {% endif %}
-
     <div style="margin-top: 30px; text-align: center;">
-        <a href="{{ url_for('home') }}">
+        <a href="{{ url_for('index') }}">
             <button style="padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;">
                 ⬅ Back to Home
             </button>
         </a>
     </div>
-
 </body>
 </html>
 """
 
 @url_bp.route('/', methods=['GET', 'POST'])
 def phishing_home():
-    result = None
+    result = ""
     if request.method == 'POST':
         url = request.form.get('url')
-        result = check_url(url)
-    return render_template_string(HOME_HTML, result=result.strip() if result else None)
+        if url:
+            result = check_url(url)
+        else:
+            result = "Please provide a valid URL."
+    return render_template_string(HOME_HTML, result=result)
