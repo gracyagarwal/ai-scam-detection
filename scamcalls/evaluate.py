@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 # ==== CONFIGURATION ====
 # Change this if your JSON file is elsewhere
-JSON_PATH = "C:/Users/Gracy/OneDrive/Desktop/vit/24-25winter/project-2/scam calls/merged_dataset.json"
+JSON_PATH = "merged_dataset.json"
 MODEL_DIR = "new_scam_call_model"
 BATCH_SIZE = 16  # Adjust based on system RAM
 
