@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
 from urllib.parse import urlparse
@@ -14,19 +14,30 @@ import requests
 import urllib3
 from dns import resolver
 import dns.exception
+import hashlib
 
-# Globals to hold the lazy-loaded model, scaler, and feature columns order
+# Import VirusTotal API key from config
+from config import VIRUSTOTAL_API_KEY
+
+# Import LIME for tabular data explanations
+from lime.lime_tabular import LimeTabularExplainer
+
+# Globals to hold the lazy-loaded model, scaler, feature columns, background training data, and URL cache.
 model = None
 scaler = None
 feature_columns = None
+train_data = None  # Scaled training data used as background for LIME
+url_check_cache = {}  # Simple in-memory cache for URL evaluation results
 
 def lazy_load_model():
     """
     Lazy-loads and trains the phishing detection model if not already loaded.
-    Assumes phishing.csv exists with an ID column, feature columns, and target as last column.
+    Assumes 'phishing.csv' exists with an ID column, feature columns, and target as the last column.
     Target values should be -1 for phishing (converted to 0) and 1 for legitimate.
+    Also caches scaled training data for LIME explanations.
+    This version uses GridSearchCV to tune hyperparameters.
     """
-    global model, scaler, feature_columns
+    global model, scaler, feature_columns, train_data
     if model is not None and scaler is not None:
         return  # Already loaded
 
@@ -37,18 +48,33 @@ def lazy_load_model():
     
     # Assume first column is ID, last column is target; features are in between.
     X = df.iloc[:, 1:-1]
-    y = (df.iloc[:, -1] + 1) // 2  # Convert -1 to 0
-    feature_columns = X.columns  # Save the order for later
+    y = (df.iloc[:, -1] + 1) // 2  # Convert -1 to 0 (Phishing=0, Legitimate=1)
+    feature_columns = X.columns  # Save feature column order
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
+    train_data = X_train_scaled  # Save background for LIME
 
+    # Define parameter grid for hyperparameter tuning.
+    param_grid = {
+        'n_estimators': [50, 100, 150],
+        'max_depth': [3, 5, 7],
+        'learning_rate': [0.01, 0.1, 0.2]
+    }
+
+    # Set up the XGBoost classifier (without fixed hyperparameters).
+    xgb_clf = xgb.XGBClassifier(eval_metric='logloss')
+    grid_search = GridSearchCV(xgb_clf, param_grid, cv=5, scoring='accuracy')
+    grid_search.fit(X_train_scaled, y_train)
+    best_params = grid_search.best_params_
+    print("🔍 Best Parameters found:", best_params)
+
+    # Train final model with the best parameters.
     model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.1,
-        use_label_encoder=False,
+        n_estimators=best_params['n_estimators'],
+        max_depth=best_params['max_depth'],
+        learning_rate=best_params['learning_rate'],
         eval_metric='logloss'
     )
     model.fit(X_train_scaled, y_train)
@@ -57,7 +83,7 @@ def lazy_load_model():
 def extract_url_features(url):
     """
     Extracts features from the URL using various heuristics and WHOIS lookup.
-    Returns a DataFrame with the same column order as the training set.
+    Returns a DataFrame with the same column order as the training features.
     """
     features = {}
     try:
@@ -65,7 +91,7 @@ def extract_url_features(url):
         domain = parsed.netloc.lower() if parsed.netloc else parsed.path.lower()
         path = parsed.path
 
-        # Protocol check: if missing, try to determine via SSL connection
+        # Protocol check: if missing, try SSL connection.
         if not url.startswith(('http://', 'https://')):
             try:
                 context = ssl.create_default_context()
@@ -102,7 +128,7 @@ def extract_url_features(url):
             features['DomainRegLen'] = -1
             features['AgeofDomain'] = -1
 
-        # For any additional features expected in training data, set default values.
+        # Set default values for any additional features expected in training data.
         for feat in feature_columns:
             if feat not in features:
                 suspicious = (bool(re.search(r'\d', domain.replace('www.', ''))) or 
@@ -116,7 +142,7 @@ def extract_url_features(url):
 
 def check_url_accessibility(url):
     """
-    Checks if the URL is accessible by resolving its domain and sending an HTTP HEAD request.
+    Checks if the URL is accessible by resolving its domain and sending an HTTP request.
     Returns (True, formatted_url) if accessible, else (False, formatted_url).
     """
     try:
@@ -154,7 +180,7 @@ def check_url_accessibility(url):
 def check_url_reputation(url):
     """
     Calls the VirusTotal API to retrieve URL reputation stats.
-    Returns a dictionary of stats (e.g., malicious count) or None on error.
+    Returns a dictionary of stats or None on error.
     """
     try:
         url_id = hashlib.sha256(url.encode()).hexdigest()
@@ -167,14 +193,15 @@ def check_url_reputation(url):
 
 def check_url(url):
     """
-    Main function to evaluate the URL.
-    - Loads the model if not already loaded.
-    - Checks URL accessibility.
-    - Extracts features and scales them.
-    - Calls the VirusTotal API to get reputation.
-    - Incorporates all signals to produce a result string.
-    Introduces a new category 'Suspected Phish' when confidence is moderate.
+    Evaluates the URL and returns a result string that includes the predicted status,
+    confidence, and any extra notes (from VirusTotal or accessibility checks).
+    This function accepts a URL as input and uses caching for repeated requests.
     """
+    global url_check_cache
+    # Return cached result if available.
+    if url in url_check_cache:
+        return url_check_cache[url]
+
     try:
         lazy_load_model()  # Ensure model, scaler, and feature_columns are loaded
 
@@ -187,7 +214,6 @@ def check_url(url):
         prediction = model.predict(features_scaled)[0]
         proba = model.predict_proba(features_scaled)[0]
 
-        # Start with the XGBoost prediction
         if prediction == 1:
             result = "Legitimate"
             confidence = proba[1]
@@ -206,7 +232,7 @@ def check_url(url):
             else:
                 vt_note = "\nNote: VirusTotal clean."
 
-        # Incorporate accessibility info
+        # Incorporate accessibility note
         if not is_accessible:
             try:
                 parsed = urlparse(formatted_url)
@@ -220,22 +246,64 @@ def check_url(url):
         else:
             access_note = ""
 
-        # Introduce 'Suspected Phish' category based on confidence thresholds:
-        # If predicted as Phishing but confidence is moderate (<90%), mark as Suspected Phish.
-        # Also, if predicted as Legitimate but confidence is low (<60%), mark as Suspected Phish.
+        # Introduce 'Suspected Phish' if confidence thresholds are moderate
         if result == "Phishing" and confidence < 0.9:
             result = "Suspected Phish"
         elif result == "Legitimate" and confidence < 0.6:
             result = "Suspected Phish"
 
-        return (
+        final_result = (
             f"URL: {formatted_url}\n"
             f"Result: {result}\n"
             f"Confidence: {confidence * 100:.1f}%"
             f"{vt_note}{access_note}"
         ).strip()
+
+        # Store result in cache
+        url_check_cache[url] = final_result
+        return final_result
     except Exception as e:
         return f"Error analyzing URL: {e}"
+
+def explain_url(url, num_features=5):
+    """
+    Uses LIME to generate a simple, human-friendly explanation for the URL prediction.
+    Returns a list of tuples (feature, weight, message) with enhanced, contextual messaging.
+    """
+    lazy_load_model()  # Ensure model and background training data are loaded
+    features_df = extract_url_features(url)
+    if features_df is None:
+        return "Error: Could not extract features."
+    
+    features_scaled = scaler.transform(features_df)
+    explainer = LimeTabularExplainer(
+        train_data,
+        feature_names=list(feature_columns),
+        class_names=['Phishing', 'Legitimate'],
+        mode='classification',
+        discretize_continuous=True
+    )
+    exp = explainer.explain_instance(features_scaled[0], model.predict_proba, num_features=num_features)
+    explanation = exp.as_list()
+    # Sort features by absolute weight (highest impact first)
+    explanation_sorted = sorted(explanation, key=lambda x: abs(x[1]), reverse=True)
+    simple_explanation = []
+    for i, (feature, weight) in enumerate(explanation_sorted):
+        if i == 0:
+            # Provide a contextual explanation for the top feature
+            if weight > 0:
+                message = (f"Top feature: {feature} has a strong positive influence, indicating "
+                           "characteristics typical of a Legitimate URL (e.g. proper structure, clear domain).")
+            else:
+                message = (f"Top feature: {feature} has a strong negative influence, suggesting suspicious patterns "
+                           "often seen in Phishing URLs (e.g. unusual symbols or structure).")
+        else:
+            if weight > 0:
+                message = f"Presence of {feature} pushes the decision toward Legitimate."
+            else:
+                message = f"Presence of {feature} pushes the decision toward Phishing."
+        simple_explanation.append((feature, weight, message))
+    return simple_explanation
 
 def main():
     print("\nPhishing URL Detector")
@@ -244,19 +312,27 @@ def main():
     print("-" * 50)
     
     while True:
-        url = input("\nEnter URL to check: ").strip()
-        if url.lower() == 'quit':
+        url_input = input("\nEnter URL to check: ").strip()
+        if url_input.lower() == 'quit':
             print("\nGoodbye!")
             break
-        if not url:
+        if not url_input:
             print("Please enter a valid URL")
             continue
         
-        # If no protocol provided, let our functions handle it.
-        result = check_url(url)
+        result = check_url(url_input)
         print("\nAnalysis Result:")
         print("-" * 50)
         print(result)
+        print("-" * 50)
+        
+        print("\nExplanation:")
+        explanation = explain_url(url_input)
+        if isinstance(explanation, str):
+            print(explanation)
+        else:
+            for feat, weight, msg in explanation:
+                print(f"{feat}: {msg}")
         print("-" * 50)
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 from flask import Blueprint, request, render_template_string, url_for
-import os
-from .phishing_detector import check_url  # Ensure this import path is correct
+from .phishing_detector import check_url, explain_url
 
 url_bp = Blueprint('url', __name__, url_prefix='/url')
 
@@ -9,63 +8,89 @@ HOME_HTML = """
 <html>
 <head>
     <title>Phishing URL Detector</title>
+    <!-- Bootstrap CSS from CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             background-color: #121212;
             color: #eee;
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 40px;
         }
-        h1 {
-            text-align: center;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-            border: 1px solid #555;
-            background: #1e1e1e;
-            color: white;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #0d6efd;
+        .card {
+            background-color: #1e1e1e;
             border: none;
-            color: white;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
+            border-radius: 8px;
         }
-        .result {
+        .card-body {
+            padding: 20px;
+        }
+        .result, details.explanation {
             margin-top: 20px;
             padding: 15px;
             background-color: #222;
             border-left: 4px solid #10a37f;
-            white-space: pre-wrap;
+            border-radius: 5px;
+        }
+        details.explanation summary {
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        details.explanation ul {
+            list-style-type: disc;
+            padding-left: 25px;
+            margin-top: 10px;
+        }
+        details.explanation li {
+            margin-bottom: 8px;
+            line-height: 1.6;
         }
     </style>
 </head>
 <body>
-    <h1>Phishing URL Checker</h1>
-    <form method="post">
-        <input type="text" name="url" placeholder="Paste URL here" required>
-        <button type="submit">Check URL</button>
-    </form>
-    {% if result %}
-    <div class="result">
-        <pre style="margin: 0;">{{ result }}</pre>
-    </div>
-    {% endif %}
-    <div style="margin-top: 30px; text-align: center;">
-        <a href="{{ url_for('home') }}">
-            <button style="padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;">
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Phishing URL Detector</h1>
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label for="urlInput" class="form-label">Paste URL here:</label>
+                        <input type="text" name="url" id="urlInput" class="form-control" placeholder="https://example.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="explainSelect" class="form-label">Explanation:</label>
+                        <select name="explain" id="explainSelect" class="form-select">
+                            <option value="no" selected>No Explanation</option>
+                            <option value="yes">Get Explanation</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Check URL</button>
+                </form>
+            </div>
+        </div>
+        {% if result %}
+        <div class="result mt-3">
+            <pre class="m-0">{{ result }}</pre>
+        </div>
+        {% endif %}
+        {% if explanation %}
+        <details class="explanation mt-3" open>
+            <summary>Show Explanation</summary>
+            <ul class="mb-0">
+                {% for feature, weight, message in explanation %}
+                    <li><strong>{{ feature }}</strong>: {{ message }}</li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+        <div style=\"margin-top: 30px; text-align: center;\">
+            <a href=\"{{ url_for('home') }}\">
+            <button style=\"padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;\">
                 ⬅ Back to Home
             </button>
-        </a>
+            </a>
+        </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 """
@@ -73,10 +98,13 @@ HOME_HTML = """
 @url_bp.route('/', methods=['GET', 'POST'])
 def phishing_home():
     result = ""
+    explanation = None
     if request.method == 'POST':
-        url = request.form.get('url')
-        if url:
-            result = check_url(url)
+        url_input = request.form.get('url')
+        if url_input:
+            result = check_url(url_input)
+            if request.form.get('explain') == 'yes':
+                explanation = explain_url(url_input)
         else:
             result = "Please provide a valid URL."
-    return render_template_string(HOME_HTML, result=result)
+    return render_template_string(HOME_HTML, result=result, explanation=explanation)
