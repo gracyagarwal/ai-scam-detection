@@ -82,11 +82,11 @@ HOME_HTML = """
             </ul>
         </details>
         {% endif %}
-        <div style=\"margin-top: 30px; text-align: center;\">
-            <a href=\"{{ url_for('home') }}\">
-            <button style=\"padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px;\">
-                ⬅ Back to Home
-            </button>
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="{{ url_for('home') }}">
+                <button style="padding: 8px 16px; background-color: #444; color: white; border: none; border-radius: 5px; font-family: 'Segoe UI', Tahoma, sans-serif;">
+                ← Back to Home
+                </button>
             </a>
         </div>
     </div>
