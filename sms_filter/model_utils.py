@@ -15,9 +15,7 @@ nltk.download('wordnet')
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
 
-# ------------------------ #
-# TEXT PREPROCESSING
-# ------------------------ #
+
 def preprocess_text(text):
     if isinstance(text, str):
         text = text.lower()
@@ -27,9 +25,7 @@ def preprocess_text(text):
         return ' '.join(lemmatizer.lemmatize(word) for word in words if word not in stop_words)
     return ""
 
-# ------------------------ #
-# LOAD AND CLEAN DATA
-# ------------------------ #
+
 def load_data(file_path="sms_filter/spam_ham_india.csv"):
     df = pd.read_csv(file_path, encoding='latin1')
     df = df.dropna(subset=['Msg'])
@@ -39,9 +35,7 @@ def load_data(file_path="sms_filter/spam_ham_india.csv"):
     df['label'] = df['label'].apply(lambda x: 'scam' if x == 'spam' else 'genuine')
     return df
 
-# ------------------------ #
-# ADDITIONAL FEATURE EXTRACTOR WITHOUT URL FEATURE
-# ------------------------ #
+
 from sklearn.base import BaseEstimator, TransformerMixin
 
 class AdditionalFeaturesExtractor(BaseEstimator, TransformerMixin):
@@ -67,9 +61,7 @@ class AdditionalFeaturesExtractor(BaseEstimator, TransformerMixin):
             features.append([digit_count, suspicious_count])
         return np.array(features)
 
-# ------------------------ #
-# TRAIN MODEL WITH PIPELINE, GRID SEARCH & CALIBRATION
-# ------------------------ #
+
 def train_model():
     df = load_data()
     # X will be the raw messages; preprocessing is handled in the pipeline.
@@ -128,9 +120,7 @@ def train_model():
     
     return calibrated_model
 
-# ------------------------ #
-# CLASSIFY A SINGLE MESSAGE WITH THRESHOLD
-# ------------------------ #
+
 def classify_message(text, model, threshold=0.5):
     """
     Classifies an SMS as scam or genuine using the calibrated model's probabilities.
@@ -148,9 +138,7 @@ def classify_message(text, model, threshold=0.5):
         scam_index = 0  # Fallback if 'scam' is not found
     return 'scam' if probas[scam_index] >= threshold else 'genuine'
 
-# ------------------------ #
-# EXPLAIN A SINGLE MESSAGE USING LIME
-# ------------------------ #
+
 def explain_message(text, model, num_features=6):
     """
     Returns readable LIME explanation summary + individual word effects.
